@@ -46,12 +46,13 @@ Thumbs.db
 # Build output
 dist/
 build/
-out/
 
 # Temporary files
-*.tmp
-*.temp
-.cache/
+tmp/
+temp/
+
+# MongoDB data directory
+data/
 
 # Diagnostic reports (https://nodejs.org/api/report.html)
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json

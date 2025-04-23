@@ -9,14 +9,13 @@ A web application to track and split expenses among roommates. Built with Node.j
 - Monthly expense tracking
 - Settlement calculations showing who owes whom
 - Responsive design for both desktop and mobile
-- Secure reset functionality
-- Data persistence with MongoDB
+- Secure reset functionality with confirmation
 
 ## Prerequisites
 
 - Node.js (v14 or higher)
 - MongoDB (v4.4 or higher)
-- npm or yarn package manager
+- npm (Node Package Manager)
 
 ## Installation
 
@@ -36,9 +35,17 @@ A web application to track and split expenses among roommates. Built with Node.j
    MONGODB_URI=mongodb://localhost:27017/expense-tracker
    PORT=3000
    ```
-   Replace the MongoDB URI with your actual MongoDB connection string.
+   Note: Modify the MongoDB URI if you're using a different database configuration.
 
-4. Start the application:
+4. Start MongoDB:
+   ```bash
+   # If using MongoDB locally
+   mongod
+   ```
+
+## Running the Application
+
+1. Start the server:
    ```bash
    npm start
    ```
@@ -47,7 +54,10 @@ A web application to track and split expenses among roommates. Built with Node.j
    npm run dev
    ```
 
-The application will be available at `http://localhost:3000`
+2. Open your browser and navigate to:
+   ```
+   http://localhost:3000
+   ```
 
 ## Usage Guide
 
@@ -59,6 +69,7 @@ The application will be available at `http://localhost:3000`
    - Person who paid
    - Date
    - Optional note
+
 2. Click "Add Expense" to save
 
 ### Viewing Statistics
@@ -68,19 +79,25 @@ The dashboard shows:
 - Per-person expense breakdown
 - Settlement details showing who owes whom
 
-### Managing Expenses
+### Deleting Expenses
 
-- View all expenses in the "Recent Expenses" section
-- Delete individual expenses using the delete button
-- Expenses are automatically sorted by date (newest first)
+1. Find the expense in the list
+2. Click the "Delete" button
+3. Confirm the deletion
 
-### Resetting Expenses
+### Resetting All Expenses
 
-To reset all expenses:
 1. Navigate to `/reset.html`
-2. Click the "Reset All Expenses" button
-3. Confirm the action twice
-4. All expenses will be permanently deleted
+2. Click "Reset All Expenses"
+3. Confirm twice to prevent accidental resets
+
+## API Endpoints
+
+- `GET /api/expenses` - Get all expenses
+- `POST /api/expenses` - Add new expense
+- `DELETE /api/expenses/:id` - Delete an expense
+- `GET /api/statistics` - Get expense statistics
+- `POST /api/reset` - Reset all expenses
 
 ## Project Structure
 
@@ -96,18 +113,10 @@ expense-tracker/
 │   ├── controllers/    # Route controllers
 │   ├── routes/         # API routes
 │   └── middleware/     # Custom middleware
-├── server.js           # Main application file
+├── server.js           # Main server file
 ├── package.json        # Project dependencies
 └── .env               # Environment variables
 ```
-
-## API Endpoints
-
-- `GET /api/expenses` - Get all expenses
-- `POST /api/expenses` - Add new expense
-- `DELETE /api/expenses/:id` - Delete an expense
-- `GET /api/statistics` - Get expense statistics
-- `POST /api/reset` - Reset all expenses
 
 ## Security Features
 
