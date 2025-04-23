@@ -1,7 +1,5 @@
 // API endpoint
-const API_URL = window.location.hostname === 'localhost' 
-    ? '/api/expenses'
-    : 'https://your-backend-url.onrender.com/api/expenses';
+const API_URL = '/api/expenses';
 
 // Loading state management
 const setLoading = (isLoading) => {
@@ -13,6 +11,20 @@ const setLoading = (isLoading) => {
             : '<i class="bi bi-plus-circle"></i> Add Expense';
     }
 };
+
+// Function to show messages
+function showMessage(message, type = 'success') {
+    const messageElement = document.getElementById("message");
+    messageElement.innerText = message;
+    messageElement.className = `text-center mt-3 mb-4 ${type === 'error' ? 'text-danger' : 'text-success'}`;
+    
+    if (type === 'success') {
+        setTimeout(() => {
+            messageElement.innerText = '';
+            messageElement.className = 'text-center mt-3 mb-4';
+        }, 3000);
+    }
+}
 
 // Function to fetch all expenses
 async function fetchExpenses() {
@@ -33,53 +45,14 @@ async function fetchExpenses() {
 async function fetchStatistics() {
     try {
         const response = await fetch('/api/statistics');
-        
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
-        
         const data = await response.json();
-        
         if (data.error) {
             throw new Error(data.error);
         }
-        
-        // Validate and normalize data structure
-        const normalizedData = {
-            total: 0,
-            perPerson: {},
-            splits: []
-        };
-
-        // Normalize total
-        if (typeof data.total === 'number') {
-            normalizedData.total = data.total;
-        } else if (typeof data.total === 'string') {
-            normalizedData.total = parseFloat(data.total) || 0;
-        }
-
-        // Normalize perPerson
-        if (data.perPerson && typeof data.perPerson === 'object') {
-            Object.entries(data.perPerson).forEach(([person, amount]) => {
-                normalizedData.perPerson[person] = typeof amount === 'number' ? amount : parseFloat(amount) || 0;
-            });
-        }
-
-        // Normalize splits
-        if (Array.isArray(data.splits)) {
-            normalizedData.splits = data.splits.filter(split => 
-                split && 
-                typeof split.from === 'string' && 
-                typeof split.to === 'string' && 
-                (typeof split.amount === 'number' || typeof split.amount === 'string')
-            ).map(split => ({
-                from: split.from,
-                to: split.to,
-                amount: typeof split.amount === 'number' ? split.amount : parseFloat(split.amount) || 0
-            }));
-        }
-
-        updateStatistics(normalizedData);
+        updateStatistics(data);
     } catch (error) {
         showMessage('❌ Error loading statistics: ' + error.message, 'error');
     }
@@ -90,24 +63,14 @@ async function addExpense(expense) {
     try {
         const response = await fetch(API_URL, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                item: expense.item,
-                price: parseFloat(expense.price),
-                person: expense.person,
-                date: expense.date,
-                note: expense.note
-            })
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(expense)
         });
         
         const data = await response.json();
-        
         if (!response.ok) {
             throw new Error(data.error || 'Failed to add expense');
         }
-        
         return data;
     } catch (error) {
         throw new Error(error.message || 'Failed to add expense');
@@ -125,41 +88,54 @@ async function deleteExpense(id) {
         throw new Error(errorData.error || `Failed to delete expense`);
     }
     
-    const result = await response.json();
-    return result;
+    return await response.json();
 }
 
-// Function to show messages
-function showMessage(message, type = 'success') {
-    const messageElement = document.getElementById("message");
-    messageElement.innerText = message;
-    messageElement.className = `text-center mt-3 mb-4 ${type === 'error' ? 'text-danger' : 'text-success'}`;
-    
-    // Auto-hide success messages after 3 seconds
-    if (type === 'success') {
-        setTimeout(() => {
-            messageElement.innerText = '';
-            messageElement.className = 'text-center mt-3 mb-4';
-        }, 3000);
+// Function to retry failed operations
+async function retryOperation(operation, maxRetries = 3) {
+    let lastError;
+    for (let i = 0; i < maxRetries; i++) {
+        try {
+            return await operation();
+        } catch (error) {
+            lastError = error;
+            if (i < maxRetries - 1) {
+                await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1)));
+                continue;
+            }
+        }
+    }
+    throw lastError;
+}
+
+// Function to save expenses to local storage
+function saveExpensesToLocal(expenses) {
+    try {
+        localStorage.setItem('expenses', JSON.stringify(expenses));
+    } catch (error) {
+        console.error('Error saving to local storage:', error);
     }
 }
 
-// Set default date to today when page loads
-document.addEventListener('DOMContentLoaded', function() {
-    const today = new Date().toISOString().slice(0, 10);
-    document.getElementById('date').value = today;
-    loadExpenses();
-});
+// Function to load expenses from local storage
+function loadExpensesFromLocal() {
+    try {
+        const savedExpenses = localStorage.getItem('expenses');
+        return savedExpenses ? JSON.parse(savedExpenses) : [];
+    } catch (error) {
+        console.error('Error loading from local storage:', error);
+        return [];
+    }
+}
 
 // Load expenses and statistics from API
 async function loadExpenses() {
     try {
         const [expenses, statistics] = await Promise.all([
-            fetchExpenses(),
-            fetchStatistics()
+            retryOperation(() => fetchExpenses()),
+            retryOperation(() => fetchStatistics())
         ]);
         
-        // Ensure we have valid data before updating the UI
         if (Array.isArray(expenses)) {
             displayExpenses(expenses);
         } else {
@@ -173,15 +149,39 @@ async function loadExpenses() {
 // Form submission handler
 document.getElementById("expenseForm").addEventListener("submit", async function (e) {
     e.preventDefault();
+    
+    // Client-side validation
+    const item = document.getElementById("item").value.trim();
+    const price = parseFloat(document.getElementById("price").value);
+    const person = document.getElementById("person").value;
+    const date = document.getElementById("date").value;
+    const note = document.getElementById("note").value.trim();
+    
+    // Validate required fields
+    if (!item) {
+        showMessage("❌ Item name is required", 'error');
+        return;
+    }
+    if (isNaN(price) || price <= 0) {
+        showMessage("❌ Price must be a positive number", 'error');
+        return;
+    }
+    if (!person) {
+        showMessage("❌ Please select a person", 'error');
+        return;
+    }
+    if (!date) {
+        showMessage("❌ Date is required", 'error');
+        return;
+    }
+    if (note.length > 500) {
+        showMessage("❌ Note must be less than 500 characters", 'error');
+        return;
+    }
+    
     setLoading(true);
-  
-    const expense = {
-        item: document.getElementById("item").value.trim(),
-        price: parseFloat(document.getElementById("price").value),
-        person: document.getElementById("person").value,
-        date: document.getElementById("date").value,
-        note: document.getElementById("note").value.trim()
-    };
+    
+    const expense = { item, price, person, date, note };
 
     try {
         await addExpense(expense);
@@ -206,9 +206,8 @@ async function handleDeleteExpense(id) {
     }
 
     try {
-        await deleteExpense(id);
+        await retryOperation(() => deleteExpense(id));
         showMessage("✅ Expense deleted successfully!");
-        // Reload both expenses and statistics
         await Promise.all([
             loadExpenses(),
             fetchStatistics()
@@ -230,6 +229,8 @@ function displayExpenses(expenses) {
         return;
     }
     
+    saveExpensesToLocal(expenses);
+    
     expenses.forEach(expense => {
         const div = document.createElement('div');
         div.className = 'expense-item';
@@ -249,13 +250,9 @@ function displayExpenses(expenses) {
             </div>
         `;
         
-        // Add delete button to the flex container
         const flexContainer = div.querySelector('.d-flex');
         flexContainer.appendChild(deleteButton);
-        
-        // Add delete event listener
         deleteButton.addEventListener('click', () => handleDeleteExpense(expense._id));
-        
         expensesList.appendChild(div);
     });
 }
@@ -267,63 +264,58 @@ function updateStatistics(statistics) {
         return;
     }
 
-    // Update total amount
     const totalElement = document.getElementById('totalAmount');
     if (totalElement) {
         const total = typeof statistics.total === 'number' ? statistics.total : 0;
         totalElement.textContent = `₹${total.toFixed(2)}`;
     }
 
-    // Update per person expenses
     const perPersonElement = document.getElementById('perPersonExpenses');
     if (perPersonElement) {
         const personStats = statistics.perPerson || {};
         const total = typeof statistics.total === 'number' ? statistics.total : 0;
-        const personCount = Object.keys(personStats).length || 1;
-        const perPerson = total / personCount;
+        const allRoommates = ['Umakanta', 'Vikram', 'Somanath'];
+        const averagePerPerson = total / allRoommates.length;
 
         let html = '';
-        for (const [person, amount] of Object.entries(personStats)) {
-            if (typeof amount === 'number') {
-                const difference = amount - perPerson;
-                const differenceText = difference > 0 
-                    ? `(Paid ₹${difference.toFixed(2)} extra)`
-                    : `(Owes ₹${Math.abs(difference).toFixed(2)})`;
-                
-                html += `
-                    <div class="mb-2">
-                        <strong>${escapeHtml(person)}:</strong> ₹${amount.toFixed(2)}
-                        <small class="text-muted">${differenceText}</small>
-                    </div>
-                `;
-            }
+        for (const person of allRoommates) {
+            const amount = personStats[person] || 0;
+            const difference = amount - averagePerPerson;
+            const differenceText = difference > 0 
+                ? `(Paid ₹${difference.toFixed(2)} extra)`
+                : `(Owes ₹${Math.abs(difference).toFixed(2)})`;
+            
+            html += `
+                <div class="mb-2">
+                    <strong>${escapeHtml(person)}:</strong> ₹${amount.toFixed(2)}
+                    <small class="text-muted">${differenceText}</small>
+                </div>
+            `;
         }
         perPersonElement.innerHTML = html || '<p class="text-muted">No expenses recorded yet</p>';
     }
 
-    // Update settlement details
     const settlementElement = document.getElementById('settlementDetails');
     if (settlementElement) {
-        if (!Array.isArray(statistics.splits) || statistics.splits.length === 0) {
-            settlementElement.innerHTML = '<p class="text-muted">No settlements needed</p>';
-            return;
-        }
-
-        let html = '<div class="settlement-list">';
-        statistics.splits.forEach(split => {
-            if (split && typeof split.amount === 'number') {
+        const splits = statistics.splits || [];
+        if (splits.length > 0) {
+            let html = '<div class="settlement-list">';
+            splits.forEach(split => {
                 html += `
                     <div class="settlement-item">
                         <i class="bi bi-arrow-right-circle text-primary"></i>
-                        <strong>${escapeHtml(split.from)}</strong> owes 
-                        <strong>${escapeHtml(split.to)}</strong>
+                        <span>${escapeHtml(split.from)}</span>
+                        <i class="bi bi-arrow-right"></i>
+                        <span>${escapeHtml(split.to)}</span>
                         <span class="amount">₹${split.amount.toFixed(2)}</span>
                     </div>
                 `;
-            }
-        });
-        html += '</div>';
-        settlementElement.innerHTML = html;
+            });
+            html += '</div>';
+            settlementElement.innerHTML = html;
+        } else {
+            settlementElement.innerHTML = '<p class="text-muted">No settlements needed</p>';
+        }
     }
 }
 
@@ -343,5 +335,15 @@ function escapeHtml(unsafe) {
         .replace(/'/g, "&#039;");
 }
 
-// Initial fetch of statistics
-fetchStatistics(); 
+// Initialize the application
+document.addEventListener('DOMContentLoaded', function() {
+    const today = new Date().toISOString().slice(0, 10);
+    document.getElementById('date').value = today;
+    
+    const localExpenses = loadExpensesFromLocal();
+    if (localExpenses.length > 0) {
+        displayExpenses(localExpenses);
+    }
+    
+    loadExpenses();
+}); 

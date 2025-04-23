@@ -1,30 +1,28 @@
 {
   "name": "expense-tracker",
   "version": "1.0.0",
-  "description": "A real-time expense tracking application for roommates",
-  "main": "src/app.js",
+  "description": "Roommate Expense Tracker with MongoDB",
+  "main": "server.js",
   "scripts": {
-    "start": "node src/app.js",
-    "dev": "nodemon src/app.js"
+    "start": "node server.js",
+    "dev": "nodemon server.js",
+    "lint": "eslint .",
+    "test": "jest"
   },
-  "keywords": [
-    "expense-tracker",
-    "roommates",
-    "nodejs",
-    "mongodb"
-  ],
-  "author": "Umakanta Maharana",
-  "license": "MIT",
   "dependencies": {
     "cors": "^2.8.5",
-    "dotenv": "^16.0.3",
-    "express": "^4.18.2",
-    "express-rate-limit": "^6.7.0",
-    "helmet": "^6.0.1",
-    "mongoose": "^7.0.3",
-    "morgan": "^1.10.0"
+    "dotenv": "^16.4.5",
+    "express": "^4.18.3",
+    "express-rate-limit": "^7.1.5",
+    "express-validator": "^7.0.1",
+    "helmet": "^7.1.0",
+    "morgan": "^1.10.0",
+    "mongoose": "^8.2.1",
+    "winston": "^3.11.0"
   },
   "devDependencies": {
-    "nodemon": "^2.0.22"
+    "eslint": "^8.57.0",
+    "jest": "^29.7.0",
+    "nodemon": "^3.1.0"
   }
 } 
