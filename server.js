@@ -9,6 +9,9 @@ require('dotenv').config();
 
 const app = express();
 
+// Trust proxy - important when behind a reverse proxy
+app.set('trust proxy', 1);
+
 // Security middleware
 app.use(helmet({
     contentSecurityPolicy: {
